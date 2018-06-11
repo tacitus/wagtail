@@ -33,17 +33,6 @@ def index(request):
         request.user, ['change', 'delete']
     ).order_by('-created_at')
 
-    # Search
-    query_string = None
-    if 'q' in request.GET:
-        form = SearchForm(request.GET, placeholder=_("Search images"))
-        if form.is_valid():
-            query_string = form.cleaned_data['q']
-
-            images = images.search(query_string)
-    else:
-        form = SearchForm(placeholder=_("Search images"))
-
     # Filter by collection
     current_collection = None
     collection_id = request.GET.get('collection_id')
@@ -53,6 +42,16 @@ def index(request):
             images = images.filter(collection=current_collection)
         except (ValueError, Collection.DoesNotExist):
             pass
+
+    # Search
+    query_string = None
+    if 'q' in request.GET:
+        form = SearchForm(request.GET, placeholder=_("Search images"))
+        if form.is_valid() and len(form.cleaned_data['q']) > 0:
+            query_string = form.cleaned_data['q']
+            images = images.search(query_string)
+    else:
+        form = SearchForm(placeholder=_("Search images"))
 
     paginator, images = paginate(request, images)
 
@@ -67,7 +66,7 @@ def index(request):
         return render(request, 'wagtailimages/images/results.html', {
             'images': images,
             'query_string': query_string,
-            'is_searching': bool(query_string),
+            'is_searching': bool(query_string or collections),
         })
     else:
         return render(request, 'wagtailimages/images/index.html', {
@@ -95,7 +94,8 @@ def edit(request, image_id):
 
     if request.method == 'POST':
         original_file = image.file
-        form = ImageForm(request.POST, request.FILES, instance=image, user=request.user)
+        form = ImageForm(request.POST, request.FILES,
+                         instance=image, user=request.user)
         if form.is_valid():
             if 'file' in form.changed_data:
                 # Set new image file size
@@ -114,11 +114,13 @@ def edit(request, image_id):
             search_index.insert_or_update_object(image)
 
             messages.success(request, _("Image '{0}' updated.").format(image.title), buttons=[
-                messages.button(reverse('wagtailimages:edit', args=(image.id,)), _('Edit again'))
+                messages.button(reverse('wagtailimages:edit',
+                                        args=(image.id,)), _('Edit again'))
             ])
             return redirect('wagtailimages:index')
         else:
-            messages.error(request, _("The image could not be saved due to errors."))
+            messages.error(request, _(
+                "The image could not be saved due to errors."))
     else:
         form = ImageForm(instance=image, user=request.user)
 
@@ -135,7 +137,8 @@ def edit(request, image_id):
             messages.error(request, _(
                 "The source image file could not be found. Please change the source or delete the image."
             ).format(image.title), buttons=[
-                messages.button(reverse('wagtailimages:delete', args=(image.id,)), _('Delete'))
+                messages.button(reverse('wagtailimages:delete',
+                                        args=(image.id,)), _('Delete'))
             ])
 
     try:
@@ -198,7 +201,8 @@ def generate_url(request, image_id, filter_spec):
 
     # Generate url
     signature = generate_signature(image_id, filter_spec)
-    url = reverse('wagtailimages_serve', args=(signature, image_id, filter_spec))
+    url = reverse('wagtailimages_serve', args=(
+        signature, image_id, filter_spec))
 
     # Get site root url
     try:
@@ -207,7 +211,8 @@ def generate_url(request, image_id, filter_spec):
         site_root_url = Site.objects.first().root_url
 
     # Generate preview url
-    preview_url = reverse('wagtailimages:preview', args=(image_id, filter_spec))
+    preview_url = reverse('wagtailimages:preview',
+                          args=(image_id, filter_spec))
 
     return JsonResponse({'url': site_root_url + url, 'preview_url': preview_url}, status=200)
 
@@ -233,7 +238,8 @@ def delete(request, image_id):
 
     if request.method == 'POST':
         image.delete()
-        messages.success(request, _("Image '{0}' deleted.").format(image.title))
+        messages.success(request, _(
+            "Image '{0}' deleted.").format(image.title))
         return redirect('wagtailimages:index')
 
     return render(request, "wagtailimages/images/confirm_delete.html", {
@@ -248,7 +254,8 @@ def add(request):
 
     if request.method == 'POST':
         image = ImageModel(uploaded_by_user=request.user)
-        form = ImageForm(request.POST, request.FILES, instance=image, user=request.user)
+        form = ImageForm(request.POST, request.FILES,
+                         instance=image, user=request.user)
         if form.is_valid():
             # Set image file size
             image.file_size = image.file.size
@@ -259,11 +266,13 @@ def add(request):
             search_index.insert_or_update_object(image)
 
             messages.success(request, _("Image '{0}' added.").format(image.title), buttons=[
-                messages.button(reverse('wagtailimages:edit', args=(image.id,)), _('Edit'))
+                messages.button(reverse('wagtailimages:edit',
+                                        args=(image.id,)), _('Edit'))
             ])
             return redirect('wagtailimages:index')
         else:
-            messages.error(request, _("The image could not be created due to errors."))
+            messages.error(request, _(
+                "The image could not be created due to errors."))
     else:
         form = ImageForm(user=request.user)
 
